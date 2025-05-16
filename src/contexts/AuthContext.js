@@ -1,7 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser';
 
-const API_BASE_URL = 'http://localhost:3001';
+// Xác định API base URL dựa trên môi trường
+const API_BASE_URL = process.env.NODE_ENV === 'production'
+  ? 'https://your-backend-domain.com' // Thay thế bằng domain thực tế của backend
+  : 'http://localhost:3001';
 
 const AuthContext = createContext(null);
 
