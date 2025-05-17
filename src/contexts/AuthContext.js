@@ -1,10 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { startRegistration, startAuthentication } from '@simplewebauthn/browser';
 
-// Xác định API base URL dựa trên môi trường
-const API_BASE_URL = process.env.NODE_ENV === 'production'
-  ? 'https://your-backend-domain.com' // Thay thế bằng domain thực tế của backend
-  : 'http://localhost:3001';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 const AuthContext = createContext(null);
 
@@ -13,7 +9,6 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Kiểm tra token khi component mount
     checkAuth();
   }, []);
 
@@ -21,17 +16,16 @@ export const AuthProvider = ({ children }) => {
     try {
       const token = localStorage.getItem('authToken');
       if (token) {
-        // Gọi API để xác thực token và lấy thông tin user
         const response = await fetch(`${API_BASE_URL}/api/me`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
         });
+        
         if (response.ok) {
           const userData = await response.json();
           setUser(userData);
         } else {
-          // Token không hợp lệ, xóa token
           localStorage.removeItem('authToken');
         }
       }
@@ -42,92 +36,48 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const registerWithWebAuthn = async (email) => {
+  const login = async (email, password) => {
     try {
-      // 1. Lấy registration options từ server
-      const optionsResponse = await fetch(`${API_BASE_URL}/api/webauthn/register/start`, {
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
       });
 
-      if (!optionsResponse.ok) {
-        throw new Error('Failed to get registration options');
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Login failed');
       }
 
-      const options = await optionsResponse.json();
-
-      // 2. Bắt đầu quá trình đăng ký WebAuthn
-      const registrationResponse = await startRegistration(options);
-
-      // 3. Gửi response về server để xác thực
-      const verificationResponse = await fetch(`${API_BASE_URL}/api/webauthn/register/finish`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          registrationResponse
-        })
-      });
-
-      if (!verificationResponse.ok) {
-        throw new Error('Failed to verify registration');
-      }
-
-      const { token, user: userData } = await verificationResponse.json();
-      
-      // 4. Lưu token và cập nhật state
-      localStorage.setItem('authToken', token);
-      setUser(userData);
-
+      localStorage.setItem('authToken', data.token);
+      setUser(data.user);
       return { success: true };
     } catch (error) {
-      console.error('WebAuthn registration failed:', error);
       return { success: false, error: error.message };
     }
   };
 
-  const loginWithWebAuthn = async (email) => {
+  const register = async (email, password, fullname) => {
     try {
-      // 1. Lấy authentication options từ server
-      const optionsResponse = await fetch(`${API_BASE_URL}/api/webauthn/authenticate/start`, {
+      const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password, fullname }),
       });
 
-      if (!optionsResponse.ok) {
-        throw new Error('Failed to get authentication options');
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Registration failed');
       }
-
-      const options = await optionsResponse.json();
-
-      // 2. Bắt đầu quá trình xác thực WebAuthn
-      const authenticationResponse = await startAuthentication(options);
-
-      // 3. Gửi response về server để xác thực
-      const verificationResponse = await fetch(`${API_BASE_URL}/api/webauthn/authenticate/finish`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          authenticationResponse
-        })
-      });
-
-      if (!verificationResponse.ok) {
-        throw new Error('Failed to verify authentication');
-      }
-
-      const { token, user: userData } = await verificationResponse.json();
-      
-      // 4. Lưu token và cập nhật state
-      localStorage.setItem('authToken', token);
-      setUser(userData);
 
       return { success: true };
     } catch (error) {
-      console.error('WebAuthn authentication failed:', error);
       return { success: false, error: error.message };
     }
   };
@@ -140,17 +90,12 @@ export const AuthProvider = ({ children }) => {
   const value = {
     user,
     loading,
-    setUser,
-    registerWithWebAuthn,
-    loginWithWebAuthn,
-    logout
+    login,
+    register,
+    logout,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {!loading && children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {

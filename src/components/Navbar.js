@@ -1,66 +1,31 @@
 import React from 'react';
-import { AppBar, Toolbar, Button, Box, Container } from '@mui/material';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import './Navbar.css';
 
 const Navbar = () => {
+  const { user, logout } = useAuth();
+
   return (
-    <AppBar 
-      position="static" 
-      color="transparent" 
-      elevation={0}
-      sx={{ 
-        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-        backgroundColor: 'transparent'
-      }}
-    >
-      <Container maxWidth="lg">
-        <Toolbar sx={{ justifyContent: 'space-between', py: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <RouterLink to="/" style={{ textDecoration: 'none', color: 'inherit' }}>
-              <Box
-                component="img"
-                src="/logo.svg"
-                alt="Logo"
-                sx={{ height: 32, mr: 2 }}
-              />
-            </RouterLink>
-          </Box>
-          
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <Button 
-              component={RouterLink} 
-              to="/login"
-              variant="outlined"
-              sx={{ 
-                minWidth: 100,
-                borderColor: 'rgba(255, 255, 255, 0.2)',
-                '&:hover': {
-                  borderColor: 'white',
-                  backgroundColor: 'rgba(255, 255, 255, 0.05)'
-                }
-              }}
-            >
-              Log in
-            </Button>
-            <Button 
-              component={RouterLink} 
-              to="/register"
-              variant="contained"
-              sx={{ 
-                minWidth: 100,
-                backgroundColor: 'white',
-                color: 'black',
-                '&:hover': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.9)'
-                }
-              }}
-            >
-              Sign up
-            </Button>
-          </Box>
-        </Toolbar>
-      </Container>
-    </AppBar>
+    <nav className="navbar">
+      <Link to="/" className="nav-brand">FaS</Link>
+      <div className="nav-menu">
+        {user ? (
+          <>
+            <Link to="/dashboard" className="nav-link">Dashboard</Link>
+            <span className="nav-user">Xin chào, {user.fullname}</span>
+            <button onClick={logout} className="nav-button logout">
+              Đăng xuất
+            </button>
+          </>
+        ) : (
+          <>
+            <Link to="/login" className="nav-button login">Đăng nhập</Link>
+            <Link to="/register" className="nav-button register">Đăng ký</Link>
+          </>
+        )}
+      </div>
+    </nav>
   );
 };
 

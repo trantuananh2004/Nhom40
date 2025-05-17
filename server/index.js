@@ -1,5 +1,7 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { 
   generateRegistrationOptions,
@@ -8,9 +10,11 @@ const {
   verifyAuthenticationResponse
 } = require('@simplewebauthn/server');
 const { isoBase64URL } = require('@simplewebauthn/server/helpers');
+const mongoose = require('mongoose');
+const User = require('./models/User');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors({
@@ -34,29 +38,13 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// JWT Secret
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-
-// In-memory database (thay thế bằng database thực tế trong production)
-const users = new Map();
-const credentials = new Map();
-
-// Helper functions
-const generateToken = (user) => {
-  return jwt.sign(
-    { id: user.id, email: user.email },
-    JWT_SECRET,
-    { expiresIn: '1h' }
-  );
-};
-
-const verifyToken = (token) => {
-  try {
-    return jwt.verify(token, JWT_SECRET);
-  } catch (error) {
-    return null;
-  }
-};
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
+.then(() => console.log('Connected to MongoDB'))
+.catch(err => console.error('MongoDB connection error:', err));
 
 // Middleware xác thực
 const authenticateToken = (req, res, next) => {
@@ -67,16 +55,83 @@ const authenticateToken = (req, res, next) => {
     return res.status(401).json({ error: 'No token provided' });
   }
 
-  const user = verifyToken(token);
-  if (!user) {
-    return res.status(403).json({ error: 'Invalid token' });
-  }
-
-  req.user = user;
-  next();
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: 'Invalid token' });
+    }
+    req.user = user;
+    next();
+  });
 };
 
 // Routes
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { email, password, fullname } = req.body;
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ error: 'Email already registered' });
+    }
+
+    // Create new user
+    const user = new User({
+      email,
+      password,
+      fullname
+    });
+
+    await user.save();
+
+    res.status(201).json({ message: 'Registration successful' });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ error: 'Registration failed' });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Find user
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Check password
+    const validPassword = await user.comparePassword(password);
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Update last login
+    user.lastLogin = new Date();
+    await user.save();
+
+    // Generate token
+    const token = jwt.sign(
+      { userId: user._id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        email: user.email,
+        fullname: user.fullname
+      }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Login failed' });
+  }
+});
+
 app.post('/api/webauthn/register/start', async (req, res) => {
   const { email } = req.body;
 
@@ -240,17 +295,17 @@ app.post('/api/webauthn/authenticate/finish', async (req, res) => {
   }
 });
 
-app.get('/api/me', authenticateToken, (req, res) => {
-  const user = users.get(req.user.email);
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' });
+app.get('/api/me', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).select('-password');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json(user);
+  } catch (error) {
+    console.error('Get user error:', error);
+    res.status(500).json({ error: 'Failed to get user data' });
   }
-
-  res.json({
-    id: user.id,
-    email: user.email,
-    credentials: user.credentials
-  });
 });
 
 app.delete('/api/webauthn/credentials', authenticateToken, (req, res) => {

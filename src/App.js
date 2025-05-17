@@ -1,21 +1,15 @@
 import React from 'react';
-import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import { Box, Container } from '@mui/material';
-
-// Import components
-import Navbar from './components/Navbar';
-import Footer from './components/Footer';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import AuthForm from './components/AuthForm';
+import Dashboard from './components/Dashboard';
+import LandingPage from './components/LandingPage';
+import Navbar from './components/Navbar';
+import './App.css';
 
-// Import các trang
-import Home from './pages/Home.js';
-import Login from './pages/Login.js';
-import Register from './pages/Register.js';
-import Dashboard from './pages/Dashboard.js';
-
-// Tạo theme tùy chỉnh theo phong cách hanko.io
+// Tạo theme tùy chỉnh
 const theme = createTheme({
   palette: {
     mode: 'dark',
@@ -77,29 +71,21 @@ const theme = createTheme({
         },
       },
     },
-    MuiContainer: {
-      styleOverrides: {
-        root: {
-          paddingLeft: '24px',
-          paddingRight: '24px',
-        },
-      },
-    },
   },
 });
 
-// Protected Route component
+// Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
-  
+
   if (loading) {
-    return null;
+    return <div>Loading...</div>;
   }
-  
+
   if (!user) {
     return <Navigate to="/login" />;
   }
-  
+
   return children;
 };
 
@@ -109,38 +95,24 @@ function App() {
       <CssBaseline />
       <AuthProvider>
         <Router>
-          <Box sx={{ 
-            minHeight: '100vh',
-            display: 'flex',
-            flexDirection: 'column',
-            bgcolor: 'background.default',
-            color: 'text.primary',
-          }}>
+          <div className="app">
             <Navbar />
-            <Container 
-              maxWidth="lg" 
-              sx={{ 
-                py: { xs: 4, md: 8 },
-                px: { xs: 2, md: 4 },
-                flex: 1,
-              }}
-            >
+            <main className="main-content">
               <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
-                <Route 
-                  path="/dashboard" 
+                <Route path="/" element={<LandingPage />} />
+                <Route path="/login" element={<AuthForm type="login" />} />
+                <Route path="/register" element={<AuthForm type="register" />} />
+                <Route
+                  path="/dashboard"
                   element={
                     <ProtectedRoute>
                       <Dashboard />
                     </ProtectedRoute>
-                  } 
+                  }
                 />
               </Routes>
-            </Container>
-            <Footer />
-          </Box>
+            </main>
+          </div>
         </Router>
       </AuthProvider>
     </ThemeProvider>
